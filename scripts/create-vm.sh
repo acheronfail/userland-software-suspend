@@ -2,15 +2,13 @@
 
 set -euxo pipefail
 
-# TODO: create a swapfile to hibernate into
-# TODO: run this script inside qemu using the archiso, so modules are built correctly, and the host doesn't influence the build
-
 ## setup
 mountpoint="tmp/mnt"
 image_file="tmp/vm.raw"
 vm_disk="$1"
 vm_kernel="$2"
 vm_initrd="$3"
+swap_offset="$4"
 
 mkdir -p "$mountpoint"
 mkdir -p "$(dirname "$vm_disk")"
@@ -38,7 +36,7 @@ sudo mount "$part" "$mountpoint"
 
 ## bootstrap arch system
 LC_ALL=C sudo pacstrap -cK "$mountpoint" base linux linux-firmware git rustup vim networkmanager sudo openssh
-genfstab -U "$mountpoint" | sudo tee -a "${mountpoint}/etc/fstab"
+genfstab -U "$mountpoint" | grep -v $(swapon --show=NAME --noheadings) | sudo tee -a "${mountpoint}/etc/fstab"
 
 ## setup ssh
 if [ -e "$HOME/.ssh/id_rsa.pub" ]; then
@@ -70,21 +68,28 @@ chroot_cmd "sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard
 chroot_cmd "mkinitcpio -P"
 # accounts
 chroot_cmd "echo 'root:vm' | chpasswd"
-chroot_cmd "echo '%wheel ALL=(ALL:ALL) ALL' >> /etc/sudoers"
+chroot_cmd "echo '%wheel ALL=(ALL:ALL) NOPASSWD: ALL' >> /etc/sudoers"
 chroot_cmd "useradd -m -G wheel vm"
 chroot_cmd "echo 'vm:vm' | chpasswd"
+# create swap
+sudo dd if=/dev/zero of="$mountpoint/swapfile" bs=1M count=512 status=progress
+sudo chmod 0600 "$mountpoint/swapfile"
+sudo mkswap -U clear "$mountpoint/swapfile"
+echo '/swapfile none swap defaults 0 0' | sudo tee -a "$mountpoint/etc/fstab"
+chroot_cmd "filefrag -v /swapfile | head -n4 | tail -1 | awk '{ print substr(\$4, 1, length(\$4) - 2) }' > /swapfile_offset"
 
 ## extract kernel and ramdisk for qemu
 # NOTE: using the fallback image here because we're building this on the host and not in qemu, which
 # results in the wrong modules being detected and the initramfs will fail to load the disks. Using
 # the fallback image will mean everything will work.
-# Another solution would be to build this image from within a qemu instance itself (that's what
-# https://gitlab.archlinux.org/archlinux/arch-boxes does).
+# Another solution would be to build this image from within a qemu instance itself
 # See: https://bbs.archlinux.org/viewtopic.php?pid=2129281#p2129281
 sudo cp "${mountpoint}/boot/vmlinuz-linux"                "$vm_kernel"
 sudo cp "${mountpoint}/boot/initramfs-linux-fallback.img" "$vm_initrd"
+sudo cp "${mountpoint}/swapfile_offset"                   "$swap_offset"
 sudo chown -R $USER:$USER "$vm_kernel"
 sudo chown -R $USER:$USER "$vm_initrd"
+sudo chown -R $USER:$USER "$swap_offset"
 
 ## run cleanup now
 cleanup
