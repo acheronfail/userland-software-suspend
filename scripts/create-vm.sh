@@ -35,7 +35,7 @@ sudo mkfs.ext4 "$part"
 sudo mount "$part" "$mountpoint"
 
 ## bootstrap arch system
-LC_ALL=C sudo pacstrap -cK "$mountpoint" base linux linux-firmware git rustup vim networkmanager sudo openssh
+LC_ALL=C sudo pacstrap -cK "$mountpoint" base base-devel linux linux-firmware git rustup vim networkmanager sudo openssh
 genfstab -U "$mountpoint" | grep -v $(swapon --show=NAME --noheadings) | sudo tee -a "${mountpoint}/etc/fstab"
 
 ## setup ssh
@@ -71,12 +71,16 @@ chroot_cmd "echo 'root:vm' | chpasswd"
 chroot_cmd "echo '%wheel ALL=(ALL:ALL) NOPASSWD: ALL' >> /etc/sudoers"
 chroot_cmd "useradd -m -G wheel vm"
 chroot_cmd "echo 'vm:vm' | chpasswd"
+chroot_cmd "chown -R vm:vm /home/vm"
 # create swap
 sudo dd if=/dev/zero of="$mountpoint/swapfile" bs=1M count=512 status=progress
 sudo chmod 0600 "$mountpoint/swapfile"
 sudo mkswap -U clear "$mountpoint/swapfile"
 echo '/swapfile none swap defaults 0 0' | sudo tee -a "$mountpoint/etc/fstab"
 chroot_cmd "filefrag -v /swapfile | head -n4 | tail -1 | awk '{ print substr(\$4, 1, length(\$4) - 2) }' > /swapfile_offset"
+# AUR helper
+chroot_cmd "su - vm -c 'git clone https://aur.archlinux.org/paru-bin.git'"
+chroot_cmd "su - vm -c 'cd paru-bin && makepkg --noconfirm --install --syncdeps'"
 
 ## extract kernel and ramdisk for qemu
 # NOTE: using the fallback image here because we're building this on the host and not in qemu, which
