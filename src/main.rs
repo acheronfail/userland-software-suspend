@@ -1,3 +1,9 @@
+//! https://docs.kernel.org/power/userland-swsusp.html
+//! https://docs.kernel.org/power/swsusp.html
+//! https://git.kernel.org/pub/scm/linux/kernel/git/rafael/suspend-utils.git/tree/HOWTO?id=HEAD
+//! https://wiki.archlinux.org/title/Swap
+//! https://wiki.archlinux.org/title/Power_management/Suspend_and_hibernate
+
 fn main() {
     // <setup>
     // make sure snapshot and resume device fds are above 2 (not sure why)

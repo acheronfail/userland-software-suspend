@@ -1,3 +1,5 @@
+set positional-arguments
+
 disk := "vm/disk.qcow2"
 kernel := "vm/vmlinuz-linux"
 initrd := "vm/initramfs-linux.img"
@@ -18,9 +20,26 @@ vm-loopback-on:
 vm-loopback-off loop:
   sudo losetup --detach "{{loop}}"
 
+vm-ssh:
+  ssh \
+    -o ConnectTimeout=2 \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -p 2222 \
+    root@localhost
+
 vm-run:
+  just _vm-run \
+    -append "root=/dev/sda1 rw resume=/dev/sda1 resume_offset=$(cat "{{swap_offset}}") console=ttyS0" \
+    -nographic
+vm-run-gui:
+  just _vm-run \
+    -append "root=/dev/sda1 rw resume=/dev/sda1 resume_offset=$(cat "{{swap_offset}}")"
+
+_vm-run *args:
   qemu-system-x86_64 \
-    -kernel {{kernel}} -initrd {{initrd}} -append "root=/dev/sda1 rw resume=/dev/sda1 resume_offset=$(cat "{{swap_offset}}") console=ttyS0" \
+    -kernel {{kernel}} \
+    -initrd {{initrd}} \
     -drive file="{{disk}}" \
     -cpu host \
     -enable-kvm \
@@ -28,4 +47,4 @@ vm-run:
     -smp 2 \
     -display gtk,zoom-to-fit=on \
     -net nic -net user,hostfwd=tcp::2222-:22 \
-    -nographic
+    "$@"

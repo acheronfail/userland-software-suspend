@@ -64,8 +64,7 @@ chroot_cmd "locale-gen"
 chroot_cmd "echo 'vm' > /etc/hostname"
 chroot_cmd "echo '127.0.1.1 vm.localdomain  vm' >> /etc/hosts"
 # mkinitcpio
-chroot_cmd "sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems resume fsck)/' /etc/mkinitcpio.conf"
-chroot_cmd "mkinitcpio -P"
+chroot_cmd "sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems uresume fsck)/' /etc/mkinitcpio.conf"
 # accounts
 chroot_cmd "echo 'root:vm' | chpasswd"
 chroot_cmd "echo '%wheel ALL=(ALL:ALL) NOPASSWD: ALL' >> /etc/sudoers"
@@ -81,6 +80,10 @@ chroot_cmd "filefrag -v /swapfile | head -n4 | tail -1 | awk '{ print substr(\$4
 # AUR helper
 chroot_cmd "su - vm -c 'git clone https://aur.archlinux.org/paru-bin.git'"
 chroot_cmd "su - vm -c 'cd paru-bin && makepkg --noconfirm --install --syncdeps'"
+# uswswup-git
+chroot_cmd "su - vm -c 'paru -S --noconfirm uswsusp-git'"
+chroot_cmd 'echo -e "resume pause = 5\nresume device = /dev/sda1\nresume offset = $(cat /swapfile_offset)" > /etc/suspend.conf'
+chroot_cmd "mkinitcpio -P"
 
 ## extract kernel and ramdisk for qemu
 # NOTE: using the fallback image here because we're building this on the host and not in qemu, which
